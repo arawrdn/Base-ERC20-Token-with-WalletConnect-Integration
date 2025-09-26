@@ -2,15 +2,6 @@
 
 WalletConnectV4 is a minimal ERC20-like token contract designed for the Base network. It features per-wallet mint cap, automatic claim, token transfer, owner burn, and withdraw functionality. This repository contains everything needed for deployment and verification on BaseScan.
 
-## Repository Structure
-
-```
-walletconnectv4/
-├─ contracts/
-│   └─ WalletConnectV4.sol   # Solidity contract
-├─ README.md                # Project overview and instructions
-└─ deploy.js (optional)      # Node.js script for automated deployment
-```
 
 ## Features
 
