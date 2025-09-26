@@ -11,7 +11,7 @@ WalletConnectV4 is a minimal ERC20-like token contract designed for the Base net
 * `claim()` function to automatically mint remaining tokens up to cap
 * ERC20 `transfer()` and `approve()` functionalities
 * Owner can `burn()` tokens from their balance
-* Owner can `withdraw()` native BASE/ETH from the contract
+* Owner can `withdraw()` Rest of Supply from the contract
 * Owner can `rescueERC20()` mistakenly sent ERC20 tokens
 
 ## Deployment Guide
