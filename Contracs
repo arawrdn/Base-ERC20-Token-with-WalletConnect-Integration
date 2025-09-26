@@ -1,0 +1,136 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.30;
+
+/// @title WalletConnectV4 Token
+/// @notice Minimal ERC20-like token with mint (per-wallet cap), owner burn, transfer, and owner withdrawal.
+/// @dev Designed to be easy to verify on BaseScan. No external libraries used.
+contract WalletConnectV4 {
+    string public name = "WalletConnectV4";
+    string public symbol = "WCV4";
+    uint8 public constant decimals = 18;
+
+    uint256 public totalSupply;
+
+    uint256 public immutable MAX_SUPPLY;
+    uint256 public immutable MAX_PER_WALLET;
+
+    address public owner;
+
+    mapping(address => uint256) private _balances;
+    mapping(address => mapping(address => uint256)) private _allowances;
+
+    // Events
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "WalletConnectV4: caller is not the owner");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+        MAX_SUPPLY = 100000 * (10 ** decimals); // 100,000 tokens total
+        MAX_PER_WALLET = 5000 * (10 ** decimals); // 5,000 tokens max per wallet
+    }
+
+    // --------------------------- ERC20 read ---------------------------
+    function balanceOf(address account) external view returns (uint256) {
+        return _balances[account];
+    }
+
+    function allowance(address owner_, address spender) external view returns (uint256) {
+        return _allowances[owner_][spender];
+    }
+
+    // --------------------------- ERC20 write ---------------------------
+    function approve(address spender, uint256 amount) external returns (bool) {
+        _approve(msg.sender, spender, amount);
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        _transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        uint256 currentAllowance = _allowances[from][msg.sender];
+        require(currentAllowance >= amount, "WalletConnectV4: transfer amount exceeds allowance");
+        _approve(from, msg.sender, currentAllowance - amount);
+        _transfer(from, to, amount);
+        return true;
+    }
+
+    // --------------------------- Minting & Burning ---------------------------
+    function mint(uint256 amount) external {
+        require(amount > 0, "WalletConnectV4: zero amount");
+        require(totalSupply + amount <= MAX_SUPPLY, "WalletConnectV4: exceeds max supply");
+        require(_balances[msg.sender] + amount <= MAX_PER_WALLET, "WalletConnectV4: exceeds per-wallet cap");
+
+        totalSupply += amount;
+        _balances[msg.sender] += amount;
+        emit Transfer(address(0), msg.sender, amount);
+    }
+
+    function claim() external {
+        uint256 current = _balances[msg.sender];
+        require(current < MAX_PER_WALLET, "WalletConnectV4: already at or above per-wallet cap");
+        uint256 amount = MAX_PER_WALLET - current;
+        require(amount > 0, "WalletConnectV4: nothing to claim");
+        require(totalSupply + amount <= MAX_SUPPLY, "WalletConnectV4: exceeds max supply");
+
+        totalSupply += amount;
+        _balances[msg.sender] += amount;
+        emit Transfer(address(0), msg.sender, amount);
+    }
+
+    function ownerBurn(uint256 amount) external onlyOwner {
+        require(_balances[owner] >= amount, "WalletConnectV4: burn amount exceeds balance");
+        _balances[owner] -= amount;
+        totalSupply -= amount;
+        emit Transfer(owner, address(0), amount);
+    }
+
+    // --------------------------- Internal helpers ---------------------------
+    function _transfer(address from, address to, uint256 amount) internal {
+        require(to != address(0), "WalletConnectV4: transfer to zero address");
+        require(_balances[from] >= amount, "WalletConnectV4: transfer exceeds balance");
+
+        _balances[from] -= amount;
+        _balances[to] += amount;
+        emit Transfer(from, to, amount);
+    }
+
+    function _approve(address owner_, address spender, uint256 amount) internal {
+        require(spender != address(0), "WalletConnectV4: approve to zero address");
+        require(owner_ != address(0), "WalletConnectV4: approve from zero address");
+
+        _allowances[owner_][spender] = amount;
+        emit Approval(owner_, spender, amount);
+    }
+
+    // --------------------------- Admin ---------------------------
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "WalletConnectV4: new owner is the zero address");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
+    }
+
+    function rescueERC20(address token, address to, uint256 amount) external onlyOwner {
+        require(token != address(this), "WalletConnectV4: cannot rescue this token");
+        (bool success, ) = token.call(abi.encodeWithSignature("transfer(address,uint256)", to, amount));
+        require(success, "WalletConnectV4: rescue failed");
+    }
+
+    /// @notice Withdraw native ETH/BASE from contract to owner
+    function withdraw() external onlyOwner {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "WalletConnectV4: no balance to withdraw");
+        payable(owner).transfer(balance);
+    }
+
+    // Allow contract to receive native ETH/BASE
+    receive() external payable {}
+}
